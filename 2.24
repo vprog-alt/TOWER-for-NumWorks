@@ -1,0 +1,179 @@
+from bprg import *
+
+#size,posX,posY,sleep,jump,grav,antigrav,antislide
+t,X,Y,S,J,G,Q,B=10,0,2,0.018,-7,0.98,0.5,0.5
+
+bg,C_PLAYER,C_PIECE=(10,20,30),[(255,0,0),(0,0,255),(220,255,255)],(255,255,0)
+COLORS=[(80,120,200),(40,70,120),(20,30,60),(180,180,200),(255,140,0),(230,230,200),(255,0,255),(150,255,20),(20,220,255),]
+
+CONV="-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPPQRSTUVWXYZ"
+
+def UNPACK():
+  global platforms,movable,spawn
+  platforms,movable,spawn=[],[],[]
+  for i in range(len(levels[LV])/5):
+    x,y,w,h,ptf=tuple(CONV.index(rang)-1 for rang in levels[LV][i*5:][:5])
+    if i==0:spawn=[x*t+(w*t-t)//2,Y+(y-1)*t]
+    if ptf==4:
+      for i in range(w):platforms.append([x*t+i*t,Y+y*t,t,h*t,ptf])
+    else:platforms.append([x*t,Y+y*t,w*t,h*t,ptf,[x*t-t*3,x*t+t*3] if ptf==2 else [Y+y*t-t*2,Y+y*t+t*2] if ptf==3 else [X+int(x*t),X+int(w*t),(h-16)/10] if ptf==10 else []])
+
+def SETLEVEL():
+  global x,y,a,b,jump,jumps,points,platforms,collisions,objets
+  px,py,collisions,removing,cTime=x,y,[],[],sin(monotonic())/1.6
+  for P in platforms:
+    x,y,w,h,ptf=P[0],P[1],P[2],P[3],P[4]
+    if ptf in (0,1):
+      rect(x,y,w,t,COLORS[0]),rect(x,y+t,w,h-t,COLORS[ptf+1]);collisions.append([x,y,w,(t if ptf else h),0])
+    if ptf in (2,3):
+      rect(x-1,y,1,h,bg),rect(x+w,y,1,h,bg),rect(x,y-1,w,1,bg),rect(x,y+h,w,1,bg)
+      P[ptf-2]=limits(P[ptf-2]+cTime,P[5][0],P[5][1])
+      rect(P[0],P[1],w,h,COLORS[3]);collisions.append([P[0],P[1],w,h,ptf])
+    if ptf==4:
+      rect(x,y,t,t,COLORS[4])
+      C=[x,y,t,t,4];collisions.append(C)
+      if grounded([px,py],C):
+        if key(4):a,jump,jumps=-7,True,jumps+1
+        rect(x,y,w,h,bg);removing.append([P,C])
+    if ptf==5:
+      if not objets[LV]:
+        rect(x+2,y+2,t-4,t-4,C_PIECE)
+        if walled([px,py],P) or grounded([px,py],P) or uped([px,py],P):
+          points,objets[LV]=points+1,1
+          rect(x+2,y+2,t-4,t-4,bg);removing.append([P])
+    if ptf==6:
+      for i in range(w/t):rect(x+i*t+t//2-1,y+t-6,2,6,COLORS[5])
+      rect(x,y+t-2,w,2,COLORS[5]);collisions.append([x,y+t-2,w,2,6])
+    if ptf==7:
+      for i in range(w/t):rect(x+i*t+t//2-1,y,2,6,COLORS[5])
+      rect(x,y,w,2,COLORS[5]);collisions.append([x,y,w,1,7])
+    if ptf==8:
+      for i in range(h/t):rect(x+t-6,y+i*t+t//2-1,6,2,COLORS[5])
+      rect(x+t-2,y,2,h,COLORS[5]);collisions.append([x+t-2,y,2,h-1,8])
+    if ptf==9:
+      for i in range(h/t):rect(x,y+i*t+t//2-1,6,2,COLORS[5])
+      rect(x,y,2,h,COLORS[5]);collisions.append([x,y,2,h-1,9])
+    if ptf==10:
+      rect(x-2,y,t+4,t,bg)
+      P[0]=limits(P[0]+cTime*P[5][2],P[5][0],P[5][1])
+      rect(P[0],y,t,t,COLORS[6]);collisions.append([x,y,t,t-1,10])
+    if ptf==11:
+      rect(x+1,y+t-2,w-2,2,COLORS[7])
+      C=[x+1,y+t-2,w,1,11];collisions.append(C)
+      if grounded([px,py],C):a,jump=-10,True
+    if ptf==12:rect(x,y,w,h,COLORS[8]);collisions.append([x,y,w,h,12])
+  for N in removing:
+    try:platforms.remove(N[0]);collisions.remove(N[1])
+    except:""
+  x,y=px,py
+
+def grounded(it,it2):
+  if it[0]+t>it2[0] and it[0]<it2[0]+it2[2] and it[1]+t>=it2[1] and it[1]<it2[1]:return True
+def uped(it,it2):
+  if it[0]+t>it2[0] and it[0]<it2[0]+it2[2] and it[1]<=it2[1]+it2[3] and it[1]+t>it2[1]+it2[3]:return True
+def walled(it,it2):
+  if it[1]>it2[1] and it[1]<it2[1]+it2[3]:
+    if b<0 and it[0]<it2[0]+it2[2] and it[0]+t>it2[0]:return True
+    if b>0 and it[0]+t>it2[0] and it[0]<it2[0]+it2[2]:return True
+
+def APPLYCOLS():
+  global x,y,a,b,B,jump,kill,C,spawn
+  C=C_PLAYER[0]
+  for cn in collisions:
+    if not grounded([x,y],cn):B=0.5
+    if grounded([x,y],cn):
+      y,a,jump=cn[1]-t,0,False
+      if cn[4]==12:B,C=1/16,C_PLAYER[2]
+      else:B=0.5
+    elif uped([x,y],cn):y,a,jump,C=cn[1]+cn[3]-1+key(2),0,False,C_PLAYER[1]
+    elif walled([x,y],cn):
+      if b<0:x,b=cn[0]+cn[2],0
+      elif b>0:x,b=cn[0]-t,0
+    if cn[4] in (6,7,8,9,10):
+      if grounded([x,y],cn) or walled([x,y],cn) or uped([x,y],cn):kill=True
+    
+def APPLYPHYSICS():
+  global x,y,a,b,B,jump,jumps
+  D=0
+  if keyS(4) and not jump:
+    jumps+=1
+    a,jump=J,True
+  a=limits(a+G-key(4)*Q,-10,6)
+  if a>4:jump=True
+  if b>0:b-=B
+  if b<0:b+=B
+  b=limits(b+(key(3)-key(0))*2,-4,4)
+
+def PLAYER():
+  global x,y,a,b
+  rect(x,y,t,t,bg),APPLYPHYSICS()
+  x,y=limits(x+b,0,320-t),y+a
+  APPLYCOLS(),rect(x,y,t,t,C)
+
+def WIN():
+  background(bg)
+  msg=[" congratulations! ","time: {} min {}s".format(int(round(monotonic()-chrono,3)//60),round((monotonic()-chrono)%60,3)),"jumps:{}  deaths:{}  points:{}".format(jumps,deaths,points),]
+  rect(160-t//2,92-t,t,t,C_PLAYER[0])
+  rect(0,132,320,21,COLORS[0])
+  draw(msg[0],160-5*len(msg[0]),96,C_PIECE,bg)
+  draw(msg[1],160-5*len(msg[1]),134,bg,COLORS[0])
+  draw(msg[2],160-5*len(msg[2]),158,COLORS[0],bg)
+  for i in msg:print(i)
+  stopall(4)
+  background(bg)
+
+def WARP():
+  global LV,x,y,a,b,kill
+  if y<-t:
+    background(bg)
+    a,y,LV=-7,222,LV+1
+    try:UNPACK(),SETLEVEL()
+    except:WIN(),background(bg),INIT()
+  if y>222:
+    if LV-1>=0:
+      y,LV=0,LV-1
+      background(bg),UNPACK(),SETLEVEL()
+    else:kill=True
+
+def KEYOTHERS():
+  global chrono,x,y,a,b,jump,jumps,points,kill,deaths,platforms,collisions,objets,spawn
+  if kill or key(12):
+    if objets[LV]:objets[LV],points=0,points-1
+    deaths+=1
+    background((0,0,0)),sleep(0.2),background(bg)
+    x,y,platforms,collisions,spawn=-t,-t,[],[],[]
+    UNPACK(),SETLEVEL()
+    x,y,a,b,jump,kill=spawn[0],spawn[1],0,0,False,False
+  if key(17):
+    m=Time()
+    draw(" PAUSED ",120,0,bg,COLORS[0]),stopall(17),rect(120,0,80,20,bg)
+    chrono+=Time()-m
+
+def INIT():
+  global LV,chrono,x,y,a,b,jump,jumps,kill,deaths,points,objets,platforms,collisions,spawn
+  LV,platforms,collisions,spawn=0,[],[],[]
+  background(bg),UNPACK()
+  x,y,a,b,jump,jumps,kill,deaths,points,objets=spawn[0],spawn[1],0,0,False,False,0,0,0,[0 for i in range(len(levels))]
+  SETLEVEL(),release(4)
+  chrono=monotonic()
+
+LV,platforms,collisions,spawn=0,[],[],[]
+
+levels=[
+#"0822024261481125811368114781158811698117a8118b8119g4f1ad811be822c",
+"0ik50keb90vi150o7571d3320264a0da31209115",
+"4k730gib41tf210rb210o8310fa3202743082320u1115",
+"el520pl320tg313nc541eb3100987018516e5110i242022115",
+"ei4200d8b0ok820pj716rc110vb11577313f3420",
+]#ib214
+
+UNPACK()
+x,y,a,b,jump,jumps,kill,deaths,points,objets=spawn[0],spawn[1],0,0,False,0,0,0,0,[0 for i in range(len(levels))]
+chrono=monotonic()
+
+background(bg)
+
+while True:
+  SETLEVEL(),PLAYER()
+  KEYOTHERS(),WARP()
+  sleep(S)
